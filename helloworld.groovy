@@ -1,3 +1,3 @@
-def call(String message) {
-    echo message
+def helloWorld() {
+    echo 'Hello, World!'
 }
