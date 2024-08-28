@@ -1,18 +1,15 @@
 pipeline {
     agent any
-    
-     stages {
-        stage('load') {
+
+    stages {
+        stage('Load and Hello') {
             steps {
                 script {
-                    helloWorld = load "helloWorld.groovy"
-                }
-            }
-        }
-        stage('Hello') {
-            steps {
-                script {
-                    helloWorld.helloWorld()  // Call the modular function
+                    // Load the Groovy script
+                    def helloWorld = load 'helloWorld.groovy'
+                    
+                    // Call the function from the loaded script
+                    helloWorld.helloWorld()
                 }
             }
         }
