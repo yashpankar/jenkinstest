@@ -5,7 +5,7 @@ pipeline {
         stage('load') {
             steps {
                 script {
-                    helloWorld = load helloWorld.groovy
+                    helloWorld = load "helloWorld.groovy"
                 }
             }
         }
