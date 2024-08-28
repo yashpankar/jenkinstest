@@ -6,10 +6,10 @@ pipeline {
             steps {
                 script {
                     // Load the Groovy script
-                    def helloworld = load 'helloworld.groovy'
+                    def script = load 'helloworld.groovy'
                     
-                    // Call the function from the loaded script
-                    helloworld.helloworld()
+                    // Ensure the method is properly defined and call it
+                    script.helloworld()
                 }
             }
         }
