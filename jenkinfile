@@ -2,18 +2,11 @@ pipeline {
     agent any
     
     stages {
-        stage('Load Utilities') {
+        stage('Hello') {
             steps {
                 script {
-                    helloworld = load helloworld
+                    helloWorld()  // Call the modular function
                 }
-            }
-        }
-    }
-    stages {
-        stage('hello world'){
-            steps {
-                helloworld("this is for test")
             }
         }
     }
