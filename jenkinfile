@@ -1,0 +1,20 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Load Utilities') {
+            steps {
+                script {
+                    helloworld = load helloworld
+                }
+            }
+        }
+    }
+    stages {
+        stage('hello world'){
+            step{
+                helloworld("this is for test")
+            }
+        }
+    }
+}
