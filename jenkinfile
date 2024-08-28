@@ -6,7 +6,7 @@ pipeline {
             steps {
                 script {
                     // Load the Groovy script
-                    def script = load 'helloworld.groovy'
+                    def script = load 'vars/helloworld.groovy'
                     
                     // Ensure the method is properly defined and call it
                     script.helloworld()
