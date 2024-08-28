@@ -9,9 +9,7 @@ pipeline {
                 }
             }
         }
-    }
-    stages {
-        stage('Hello') {
+    stage('Hello') {
             steps {
                 script {
                     helloWorld.helloWorld()  // Call the modular function
