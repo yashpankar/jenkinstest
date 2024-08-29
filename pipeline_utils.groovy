@@ -10,3 +10,6 @@ def cleanWorkspace() {
         rm -rf "tune_results/*"
     '''
 }
+
+
+return this
