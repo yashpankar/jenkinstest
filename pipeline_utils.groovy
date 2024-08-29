@@ -1,3 +1,4 @@
+'''groovy
 def cleanWorkspace() {
     sh '''
         echo its working
@@ -6,3 +7,4 @@ def cleanWorkspace() {
 
 
 return this
+'''
