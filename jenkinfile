@@ -4,7 +4,7 @@ pipeline {
         stage('Load Utilities') {
             steps {
                 script {
-                    pipelineUtils = load "pipeline_utils.groovy"
+                    pipelineUtils = load "pipeline_utils.groovy.getconfig"
                 }
             }
         }
@@ -14,7 +14,7 @@ pipeline {
                 stage('Clean up folder') {
                     steps {
                         script {
-                            echo "pipelineUtils.${SLACK_CHANNEL}"
+                            echo pipelineUtils.SLACK_CHANNEL
                         }
                     }
                 }
