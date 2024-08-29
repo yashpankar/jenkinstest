@@ -1,25 +1,42 @@
+```groovy
+def dockerUtils
+def config
+def slackNotifier
+def deploymentUtils
+def pipelineUtils
+def testUtils
+def envSetup
+
 pipeline {
-    agent any
+    agent {
+        label 'docker-azcli-kubectl'
+    }
 
     stages {
-        stage('List Files') {
+        stage('Load Utilities') {
             steps {
                 script {
-                    sh 'ls -R'
+                    dockerUtils = load "docker_utils.groovy"
+                    config = load "config.groovy"
+                    slackNotifier = load "slack_notifier.groovy"
+                    deploymentUtils = load "deployment_utils.groovy"
+                    pipelineUtils = load "pipeline_utils.groovy"
+                    testUtils = load "test_utils.groovy"
+                    envSetup = load "env_setup.groovy"
                 }
             }
         }
-        stage('Load and Hello') {
-            steps {
-                script {
-                    // Load the Groovy script
-                    def script = load './vars/helloworld.groovy'
-                    
-                    // Ensure the method is properly defined and call it
-                    script.file("hello world")
+
+        stage('Prep work') {
+            parallel {
+                stage('Clean up folder') {
+                    steps {
+                        script {
+                            pipelineUtils.cleanWorkspace()
+                        }
+                    }
                 }
             }
         }
     }
 }
-
