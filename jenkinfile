@@ -1,4 +1,3 @@
-```groovy
 def dockerUtils
 def config
 def slackNotifier
