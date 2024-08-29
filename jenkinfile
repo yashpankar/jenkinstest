@@ -16,7 +16,7 @@ pipeline {
                     def script = load './vars/helloworld.groovy'
                     
                     // Ensure the method is properly defined and call it
-                    script()
+                    script.file("hello world")
                 }
             }
         }
