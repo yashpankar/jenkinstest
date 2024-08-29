@@ -15,7 +15,7 @@ pipeline {
                     steps {
                         script {
                             Conf = pipelineUtils.getconfig()
-                            echo Conf.SLACK_CHANNEL
+                            echo "Conf.SLACK_CHANNEL"
                         }
                     }
                 }
