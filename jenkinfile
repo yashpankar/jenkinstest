@@ -9,7 +9,6 @@ pipeline {
                     def config = configScript.getConfig()
 
                     // Store the configuration in environment variables for later use
-                    env.SLACK_CHANNEL = config.SLACK_CHANNEL
                     // Add other environment variables as needed
                 }
             }
@@ -22,7 +21,7 @@ pipeline {
                         script {
                    
 
-                    echo "Slack Channel: ${env.SLACK_CHANNEL}"
+                    echo "Slack Channel: ${config.SLACK_CHANNEL}"
                         }
                     }
                 }
