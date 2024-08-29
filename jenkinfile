@@ -1,12 +1,3 @@
-```groovy
-def dockerUtils
-def config
-def slackNotifier
-def deploymentUtils
-def pipelineUtils
-def testUtils
-def envSetup
-
 pipeline {
     agent any
     stages {
@@ -31,4 +22,3 @@ pipeline {
         }
     }
 }
-```
