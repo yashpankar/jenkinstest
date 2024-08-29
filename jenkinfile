@@ -21,7 +21,7 @@ pipeline {
                         script {
                    
 
-                    echo "Slack Channel: config.SLACK_CHANNEL
+                    echo "Slack Channel: config.SLACK_CHANNEL"
                         }
                     }
                 }
