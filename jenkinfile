@@ -4,7 +4,7 @@ pipeline {
         stage('Load Utilities') {
             steps {
                 script {
-                    pipelineUtils = load "pipeline_utils.groovy"
+                    defconfigScript = load "pipeline_utils.groovy"
                 }
             }
         }
@@ -14,7 +14,13 @@ pipeline {
                 stage('Clean up folder') {
                     steps {
                         script {
-                            echo {pipelineUtils.SLACK_CHANNEL}
+                    // Call the getConfig function
+                    def config = configScript.getConfig()
+                    
+                    // Access configuration values
+                    env.SLACK_CHANNEL = config.SLACK_CHANNEL
+
+                    echo "Slack Channel: ${env.SLACK_CHANNEL}"
                         }
                     }
                 }
