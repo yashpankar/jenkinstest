@@ -14,8 +14,7 @@ pipeline {
                 stage('Clean up folder') {
                     steps {
                         script {
-                            Conf = pipelineUtils.getconfig()
-                            echo "Conf.SLACK_CHANNEL"
+                            echo ${pipelineUtils.SLACK_CHANNEL}
                         }
                     }
                 }
