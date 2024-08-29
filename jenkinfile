@@ -9,7 +9,7 @@ pipeline {
                     def script = load 'vars/helloworld.groovy'
                     
                     // Ensure the method is properly defined and call it
-                    echo script.helloworld()
+                    echo script.helloworld("world")
                 }
             }
         }
