@@ -12,13 +12,7 @@ pipeline {
         stage('Load Utilities') {
             steps {
                 script {
-                    dockerUtils = load "docker_utils.groovy"
-                    config = load "config.groovy"
-                    slackNotifier = load "slack_notifier.groovy"
-                    deploymentUtils = load "deployment_utils.groovy"
                     pipelineUtils = load "pipeline_utils.groovy"
-                    testUtils = load "test_utils.groovy"
-                    envSetup = load "env_setup.groovy"
                 }
             }
         }
