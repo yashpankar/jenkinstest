@@ -4,12 +4,13 @@ pipeline {
         stage('Load Utilities') {
             steps {
                 script {
+                    // Load the config.groovy script and call getConfig function
                     def configScript = load "pipeline_utils.groovy"
-                     // Call the getConfig function
-                    def config = configScript.getconfig()
-                    
-                    // Access configuration values
+                    def config = configScript.getConfig()
+
+                    // Store the configuration in environment variables for later use
                     env.SLACK_CHANNEL = config.SLACK_CHANNEL
+                    // Add other environment variables as needed
                 }
             }
         }
