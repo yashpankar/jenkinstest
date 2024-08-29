@@ -7,10 +7,7 @@ def testUtils
 def envSetup
 
 pipeline {
-    agent {
-        label 'docker-azcli-kubectl'
-    }
-
+    agent any
     stages {
         stage('Load Utilities') {
             steps {
