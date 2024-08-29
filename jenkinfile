@@ -14,7 +14,7 @@ pipeline {
                 stage('Clean up folder') {
                     steps {
                         script {
-                            pipelineUtils.cleanWorkspace()
+                            echo pipelineUtils.SLACK_CHANNEL
                         }
                     }
                 }
