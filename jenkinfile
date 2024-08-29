@@ -4,7 +4,7 @@ pipeline {
         stage('Load Utilities') {
             steps {
                 script {
-                    defconfigScript = load "pipeline_utils.groovy"
+                    def configScript = load "pipeline_utils.groovy"
                 }
             }
         }
