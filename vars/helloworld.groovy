@@ -1,3 +1,3 @@
-def helloworld() {
+def file() {
     echo 'Hello, World!'
 }
