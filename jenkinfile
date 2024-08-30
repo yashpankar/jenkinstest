@@ -13,7 +13,7 @@ pipeline {
                     
                     // Store configuration values in environment variables
                     env.TEST_BUILDING = config.TEST_BUILDING
-                    env.SLACK_CHANNEL = config.SLACK_CHANNEL
+                    SLACK_CHANNEL = config.SLACK_CHANNEL
                 }
             }
         }
@@ -25,7 +25,7 @@ pipeline {
                         script {
                             echo "Slack Channel: ${env.SLACK_CHANNEL}"
                             echo "Loaded Slack Notifier: ${slackNotifier}"
-                            echo "Slack Channel: ${env.SLACK_CHANNEL}"
+                            echo "Slack Channel: ${SLACK_CHANNEL}"
                             slackNotifier.sendSlackNotification()
                         }
                     }
