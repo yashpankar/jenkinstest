@@ -5,8 +5,9 @@ pipeline {
             steps {
                 script {
                     // Load the external Groovy script
-                    def configScript = load "pipeline_utils.groovy"
+                    def configScript = load "config.groovy"
                     slackNotifier = load "slack_notifier.groovy"
+                    pipelineUtils = load "pipeline_utils.groovy"
                     
                     // Call getConfig function to get configuration
                     def config = configScript.getConfig()
