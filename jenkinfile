@@ -7,7 +7,6 @@ pipeline {
                     // Load the config.groovy script and call getConfig function
                     def configScript = load "pipeline_utils.groovy"
                     def config = configScript.getConfig()
-                    env.SLACK_CHANNEL = config.SLACK_CHANNEL
 
                     // Store the configuration in environment variables for later use
                     // Add other environment variables as needed
@@ -22,7 +21,7 @@ pipeline {
                         script {
                    
 
-                    echo "Slack Channel: ${env.SLACK_CHANNEL}"
+                    echo "Slack Channel: config.SLACK_CHANNEL"
                         }
                     }
                 }
