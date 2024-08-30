@@ -14,6 +14,8 @@ pipeline {
                     // Store configuration values in environment variables
                     env.TEST_BUILDING = config.TEST_BUILDING
                     SLACK_CHANNEL = config.SLACK_CHANNEL
+                    TEST_PROJECT_SOURCE_FOLDER = config.TEST_PROJECT_SOURCE_FOLDER
+                    TEST_PROJECT_TESTS_FOLDER = config.TEST_PROJECT_TESTS_FOLDER
                 }
             }
         }
@@ -27,6 +29,7 @@ pipeline {
                             echo "Loaded Slack Notifier: ${slackNotifier}"
                             echo "Slack Channel: ${SLACK_CHANNEL}"
                             slackNotifier.sendSlackNotification()
+                            pipelineUtils.cleanWorkspace()
                         }
                     }
                 }
