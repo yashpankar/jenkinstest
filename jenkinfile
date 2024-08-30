@@ -5,8 +5,6 @@ pipeline {
     def config = configScript.getConfig()
     TEST_BUILDING = "${config.TEST_BUILDING}"
     SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
-    TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
-    TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
     }
     stages {
         stage('Load Utilities') {
