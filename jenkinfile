@@ -23,13 +23,10 @@ pipeline {
                 stage('Clean up folder') {
                     steps {
                         script {
-                   
-
-                    echo "Slack Channel: ${env.SLACK_CHANNEL}"
-                    echo "Loaded Slack Notifier: ${slackNotifier}"
-                    echo "Slack Channel: ${env.SLACK_CHANNEL}"
-                    echo "${config.SLACK_CHANNEL}"
-
+                            echo "Slack Channel: ${env.SLACK_CHANNEL}"
+                            echo "Loaded Slack Notifier: ${slackNotifier}"
+                            echo "Slack Channel: ${env.SLACK_CHANNEL}"
+                            slackNotifier.sendSlackNotification()
                         }
                     }
                 }
