@@ -1,8 +1,8 @@
 def cleanWorkspace() {
     sh '''
-        echo "${TEST_PROJECT_SOURCE_FOLDER}" 
-        echo "${TEST_PROJECT_TESTS_FOLDER}"
-        echo "${TEST_PROJECT_SOURCE_FOLDER}" 
+        echo "first: ${TEST_PROJECT_SOURCE_FOLDER}" 
+        echo "second: ${TEST_PROJECT_TESTS_FOLDER}"
+        echo "third: ${TEST_PROJECT_SOURCE_FOLDER}" 
     '''
 }
 
