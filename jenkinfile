@@ -1,8 +1,8 @@
 pipeline {
     agent any
     environment {
-    TEST_PROJECT_SOURCE_FOLDER = aimy
-    TEST_PROJECT_TESTS_FOLDER = test
+    TEST_PROJECT_SOURCE_FOLDER = "aimy"
+    TEST_PROJECT_TESTS_FOLDER = "test"
     }
     stages {
         stage('Load Utilities') {
