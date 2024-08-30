@@ -29,8 +29,8 @@ pipeline {
                             echo "Slack Channel: ${env.SLACK_CHANNEL}"
                             echo "Loaded Slack Notifier: ${slackNotifier}"
                             echo "Slack Channel: ${SLACK_CHANNEL}"
-                            echo ${TEST_PROJECT_SOURCE_FOLDER} 
-                            echo ${TEST_PROJECT_TESTS_FOLDER} 
+                            echo "${TEST_PROJECT_SOURCE_FOLDER}" 
+                            echo "${TEST_PROJECT_TESTS_FOLDER}" 
                             slackNotifier.sendSlackNotification()
                         }
                     }
