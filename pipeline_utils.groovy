@@ -1,4 +1,4 @@
-def getConfig() {
+Map<String, String> getConfig() {
     return [
         TEST_BUILDING: '1108',
         SLACK_CHANNEL: 'jenkins-bot',
@@ -15,5 +15,4 @@ def getConfig() {
         // ... Add all other environment variables here
     ]
 }
-
 return this
