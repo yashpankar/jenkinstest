@@ -4,12 +4,15 @@ pipeline {
         stage('Load Utilities') {
             steps {
                 script {
-                    // Load the config.groovy script and call getConfig function
+                    // Load the external Groovy script
                     def configScript = load "pipeline_utils.groovy"
+                    
+                    // Call getConfig function to get configuration
                     def config = configScript.getConfig()
-
-                    // Store the configuration in environment variables for later use
-                    // Add other environment variables as needed
+                    
+                    // Store configuration values in environment variables
+                    env.TEST_BUILDING = config.TEST_BUILDING
+                    env.SLACK_CHANNEL = config.SLACK_CHANNEL
                 }
             }
         }
@@ -21,7 +24,7 @@ pipeline {
                         script {
                    
 
-                    echo  config.SLACK_CHANNEL
+                    echo "Slack Channel: ${env.SLACK_CHANNEL}"
                         }
                     }
                 }
