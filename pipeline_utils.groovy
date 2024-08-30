@@ -1,18 +1,27 @@
-Map<String, String> getConfig() {
-    return [
-        TEST_BUILDING: '1108',
-        SLACK_CHANNEL: 'jenkins-bot',
-        REPO_NAME: 'ai5cicd',
-        MAJOR_VERSION: '2',
-        TRAIN_NAMESPACE: 'prod-ai5',
-        TRAIN_DEPLOYMENT_MANIFEST: './deploymentk8s/train/prod/train-deployment.yaml',
-        TRAIN_K8S_RESOURCE_FOLDER: './deploymentk8s/train/prod/',
-        TRAIN_CONTAINER_NAME: 'train',
-        OPTIMIZER_NAMESPACE: 'prod-ai5',
-        OPTIMIZER_DEPLOYMENT_MANIFEST: './deploymentk8s/optimizer/prod/optimizer-deployment.yaml',
-        OPTIMIZER_K8S_RESOURCE_FOLDER: './deploymentk8s/optimizer/prod/',
-        OPTIMIZER_CONTAINER_NAME: 'optimizer',
-        // ... Add all other environment variables here
-    ]
+def cleanWorkspace() {
+    sh '''
+        rm -f .gitinfo
+        rm -rf build dist *.egg-info
+        find "${TEST_PROJECT_SOURCE_FOLDER}" -name __pycache__ | xargs rm -rf
+        find "${TEST_PROJECT_TESTS_FOLDER}" -name __pycache__ | xargs rm -rf
+        find . -name .pytest_cache | xargs rm -rf
+        find "${TEST_PROJECT_SOURCE_FOLDER}" -name "*.pyc" -delete
+        rm -rf .coverage
+        rm -rf "tune_results/*"
+    '''
 }
+
+def loginToAzure() {
+    sh '''
+        az login --service-principal \
+            -u ${AZURE_SP_CLIENT_ID} \
+            -p ${AZURE_SP_CLIENT_SECRET} \
+            --tenant ${AZURE_TENANT_ID}
+    '''
+}
+
+def getK8sCredentials() {
+    sh 'az aks get-credentials -n ${K8S_NAME} -g ${K8S_RG}'
+}
+
 return this
