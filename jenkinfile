@@ -2,10 +2,7 @@ pipeline {
     agent any
     environment {
     def configScript = load "config.groovy"
-    def config = configScript.getConfig()
-    SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
-    TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
-    TEST_PROJECT_TESTS_FOLDER =  "${config.TEST_PROJECT_TESTS_FOLDER}"                       
+    def config = configScript.getConfig()                      
     }
     stages {
         stage('Load Utilities') {
@@ -24,9 +21,9 @@ pipeline {
                 stage('Clean up folder') {
                     steps {
                         script {
-                            echo "Slack Channel: ${env.SLACK_CHANNEL}"
+                            echo "Slack Channel: "${config.SLACK_CHANNEL}"
                             echo "Loaded Slack Notifier: ${slackNotifier}"
-                            echo "Slack Channel: ${SLACK_CHANNEL}"
+                            echo "Slack Channel: "${config.SLACK_CHANNEL}"
                             echo "${TEST_PROJECT_SOURCE_FOLDER}" 
                             echo "${TEST_PROJECT_TESTS_FOLDER}" 
                             slackNotifier.sendSlackNotification()
