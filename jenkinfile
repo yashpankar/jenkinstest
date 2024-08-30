@@ -3,9 +3,9 @@ pipeline {
     environment {
     def configScript = load "config.groovy"
     def config = configScript.getConfig()
-    SLACK_CHANNEL = config.SLACK_CHANNEL
-    TEST_PROJECT_SOURCE_FOLDER = config.TEST_PROJECT_SOURCE_FOLDER
-    TEST_PROJECT_TESTS_FOLDER =  config.TEST_PROJECT_TESTS_FOLDER                       
+    def SLACK_CHANNEL = config.SLACK_CHANNEL
+    def TEST_PROJECT_SOURCE_FOLDER = config.TEST_PROJECT_SOURCE_FOLDER
+    def TEST_PROJECT_TESTS_FOLDER =  config.TEST_PROJECT_TESTS_FOLDER                       
     }
     stages {
         stage('Load Utilities') {
