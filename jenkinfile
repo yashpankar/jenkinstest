@@ -3,8 +3,6 @@ pipeline {
     environment {
     def configScript = load "config.groovy"
     def config = configScript.getConfig()
-    TEST_PROJECT_SOURCE_FOLDER = "aimy"
-    TEST_PROJECT_TESTS_FOLDER = "test"
     env.TEST_BUILDING = "config.TEST_BUILDING"
     SLACK_CHANNEL = "config.SLACK_CHANNEL"
     TEST_PROJECT_SOURCE_FOLDER = "config.TEST_PROJECT_SOURCE_FOLDER"
