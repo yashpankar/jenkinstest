@@ -28,7 +28,7 @@ pipeline {
                     echo "Slack Channel: ${env.SLACK_CHANNEL}"
                     echo "Loaded Slack Notifier: ${slackNotifier}"
                     echo "Slack Channel: ${env.SLACK_CHANNEL}"
-                    echo ${config.SLACK_CHANNEL}
+                    echo "${config.SLACK_CHANNEL}"
 
                         }
                     }
