@@ -32,6 +32,7 @@ pipeline {
                             echo "${TEST_PROJECT_SOURCE_FOLDER}" 
                             echo "${TEST_PROJECT_TESTS_FOLDER}" 
                             slackNotifier.sendSlackNotification()
+                            pipelineUtils.cleanWorkspace()
                         }
                     }
                 }
