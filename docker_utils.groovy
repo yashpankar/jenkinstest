@@ -1,5 +1,4 @@
-def buildDockerImage(String imageName, String dockerfile, Map buildArgs) {
-    def argString = buildArgs.collect { k, v -> "--build-arg \"${k}=${v}\"" }.join(' ')
+def buildDockerImage() {
     sh """
      echo "docker build"
     """
@@ -25,7 +24,7 @@ def runDockerContainer(String imageName, String command) {
     """
 }
 
-def dockerLogin(String dockerTlsClientDir, String azureSpClientId, String azureSpClientSecret, String baseImageRepoUrl) {
+def dockerLogin() {
     sh """
        echo "docker login"
     """
