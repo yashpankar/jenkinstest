@@ -7,7 +7,6 @@ pipeline {
     SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
     TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
     TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
-    def dockerUtils = load "docker_utils.groovy"
     }
     stages {
         stage('Load Utilities') {
@@ -16,7 +15,7 @@ pipeline {
                     // Load the external Groovy script
                     slackNotifier = load "slack_notifier.groovy"
                     pipelineUtils = load "pipeline_utils.groovy"
-                    
+                    dockerUtils = load "docker_utils.groovy"
                     // Store configuration values in environment variables
                 }
             }
@@ -33,12 +32,6 @@ pipeline {
                             echo "${TEST_PROJECT_TESTS_FOLDER}" 
                             slackNotifier.sendSlackNotification()
                             pipelineUtils.cleanWorkspace()
-                        }
-                    }
-                }
-                stage('Build Base Image') {
-                    steps {
-                        script {
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
                         }
