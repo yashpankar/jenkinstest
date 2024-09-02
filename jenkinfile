@@ -36,7 +36,15 @@ pipeline {
                             dockerUtils.buildDockerImage()
                         }
                     }
-                }          
+                } 
+                stage('Build Base Image') {
+                    steps {
+                        script {
+                            dockerUtils.dockerLogin()
+                            dockerUtils.buildDockerImage()
+                        }
+                    }
+                }
             }
         }   
     }
