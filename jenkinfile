@@ -15,6 +15,7 @@ pipeline {
                     // Load the external Groovy script
                     slackNotifier = load "slack_notifier.groovy"
                     pipelineUtils = load "pipeline_utils.groovy"
+                    dockerutils  = load "docker_utils.groovy"
                     
                     // Store configuration values in environment variables
                 }
