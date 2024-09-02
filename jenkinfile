@@ -41,17 +41,8 @@ pipeline {
         stage('Build Base Image') {
                     steps {
                         script {
-                            dockerUtils.dockerLogin(
-                                dockerTlsClientDir: '${DOCKER_TLS_CLIENTDIR}',
-                                azureSpClientId: '${AZURE_SP_CLIENT_ID}',
-                                azureSpClientSecret: '${AZURE_SP_CLIENT_SECRET}',
-                                baseImageRepoUrl: '${BASE_IMAGE_REPO_URL}'
-                            )
-                            dockerUtils.buildDockerImage("${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}",
-                            "${DOCKERFILE_PATH_BASE}",
-                            [BASE_IMAGE: AI5_BASE_IMAGE,
-                            USER: AI5_USER,
-                            USER_ID: AI5_USER_ID])
+                            dockerUtils.dockerLogin()
+                            dockerUtils.buildDockerImage()
                         }
                     }
                 }
