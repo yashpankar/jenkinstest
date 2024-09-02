@@ -1,7 +1,5 @@
 def buildDockerImage() {
-    sh """
      echo "docker build"
-    """
 }
 
 def pushDockerImage(String imageName) {
@@ -25,9 +23,7 @@ def runDockerContainer(String imageName, String command) {
 }
 
 def dockerLogin() {
-    sh """
        echo "docker login"
-    """
 }
 
 return this
