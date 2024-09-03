@@ -7,7 +7,7 @@ pipeline {
     SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
     TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
     TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
-    MY_SECRET = credentials(12345)
+    MY_SECRET = credentials('yashpankar')
     }
     stages {
         stage('Load Utilities') {
