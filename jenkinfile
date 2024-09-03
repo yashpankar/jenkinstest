@@ -18,6 +18,7 @@ pipeline {
                     pipelineUtils = load "pipeline_utils.groovy"
                     dockerUtils = load "docker_utils.groovy"
                     // Store configuration values in environment variables
+                    
                 }
             }
         }
@@ -35,7 +36,7 @@ pipeline {
                             pipelineUtils.cleanWorkspace()
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
-                            echo "The secret text is"
+                            echo "The secret text is: ${MT_SECRET}"
                         }
                     }
                 } 
