@@ -7,6 +7,7 @@ pipeline {
     SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
     TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
     TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
+    MY_SECRET = credentials('12345')
     }
     stages {
         stage('Load Utilities') {
@@ -34,6 +35,7 @@ pipeline {
                             pipelineUtils.cleanWorkspace()
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
+                            echo "The secret text is: ${env.MY_SECRET}"
                         }
                     }
                 } 
