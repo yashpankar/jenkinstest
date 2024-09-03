@@ -25,14 +25,6 @@ pipeline {
             parallel {
                 stage('Clean up folder') {
                     steps {
-                        withCredentials(
-                            [usernamePassword(
-                                credentialsId: 'AZURE_SPP',
-                                passwordVariable: 'CLIENT_SECRET',
-                                usernameVariable: 'CLIENT_ID'
-                                )
-                            ]
-                        )
                         script {
                             echo "Slack Channel: ${SLACK_CHANNEL}"
                             echo "Loaded Slack Notifier: ${slackNotifier}"
@@ -43,8 +35,8 @@ pipeline {
                             pipelineUtils.cleanWorkspace()
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
-                            echo "${passwordVariable}"
-                            echo "${usernameVariable}"    
+                            echo "${AZURE_SPP_CLIENT_SECRET}"
+                            echo "${AZURE_SPP_CLIENT_ID}"    
                         }
                     }
                 } 
