@@ -7,7 +7,7 @@ pipeline {
     SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
     TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
     TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
-    MY_SECRET = credentials('AZURE_SP')
+    MY_SECRET = credentials('AZURE_SPP')
     }
     stages {
         stage('Load Utilities') {
