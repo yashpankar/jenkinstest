@@ -35,7 +35,7 @@ pipeline {
                             pipelineUtils.cleanWorkspace()
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
-                            echo "The secret text is: ${env.MY_SECRET}"
+                            echo "The secret text is"
                         }
                     }
                 } 
