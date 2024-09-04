@@ -1,27 +1,26 @@
 pipeline {
     agent any
     environment {
-    def configScript = load "config.groovy"
-    def config = configScript.getConfig()
-    TEST_BUILDING = "${config.TEST_BUILDING}"
-    SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
-    TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
-    TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
+        def configScript = load "config.groovy"
+        def config = configScript.getConfig()
+        TEST_BUILDING = "${config.TEST_BUILDING}"
+        SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
+        TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
+        TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
     }
     stages {
         stage('Load Utilities') {
             steps {
                 script {
-                    // Load the external Groovy script
+                    // Load the external Groovy scripts
                     slackNotifier = load "slack_notifier.groovy"
                     pipelineUtils = load "pipeline_utils.groovy"
                     dockerUtils = load "docker_utils.groovy"
                     // Store configuration values in environment variables
-                    
                 }
             }
         }
-        stages ('Prep work') {
+        stage('Prep work') {  // Changed 'stages' to 'stage'
             parallel {
                 stage('Clean up folder') {
                     steps {
@@ -29,27 +28,27 @@ pipeline {
                             echo "Slack Channel: ${SLACK_CHANNEL}"
                             echo "Loaded Slack Notifier: ${slackNotifier}"
                             echo "Slack Channel: ${SLACK_CHANNEL}"
-                            echo "${TEST_PROJECT_SOURCE_FOLDER}" 
-                            echo "${TEST_PROJECT_TESTS_FOLDER}" 
+                            echo "${TEST_PROJECT_SOURCE_FOLDER}"
+                            echo "${TEST_PROJECT_TESTS_FOLDER}"
                             slackNotifier.sendSlackNotification()
                             pipelineUtils.cleanWorkspace()
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
                             withCredentials([usernamePassword(credentialsId: 'yashpankar', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
-                            echo "Username: ${USERNAME}"
+                                echo "Username: ${USERNAME}"
+                            }
                         }
                     }
-                } 
+                }
                 stage('Build Base Image') {
                     steps {
                         script {
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
-                            }
                         }
                     }
                 }
-            }   
+            }
         }
     }
 }
