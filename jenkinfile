@@ -35,8 +35,8 @@ pipeline {
                             pipelineUtils.cleanWorkspace()
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
-                            echo "${AZURE_SPP_CLIENT_SECRET}"
-                            echo "${AZURE_SPP_CLIENT_ID}"    
+                            withCredentials([usernamePassword(credentialsId: 'yashpankar', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
+                            echo "Username: ${USERNAME}"
                         }
                     }
                 } 
