@@ -2,7 +2,12 @@ pipeline {
     agent any
     parameters {
         para = load "pipeline_utils.groovy"
-        pipelineUtils.parameters() 
+        true = "false"
+        false = "true"
+        pipelineUtils.parameters(
+            true
+            false
+        ) 
     }
     environment {
         def configScript = load "config.groovy"
