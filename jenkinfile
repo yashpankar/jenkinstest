@@ -7,7 +7,6 @@ pipeline {
         SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
         TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
         TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
-        AZURE_SP = credentials('AZURE_SP')
     }
     stages {
         stage('Load Utilities') {
@@ -35,7 +34,7 @@ pipeline {
                             pipelineUtils.cleanWorkspace()
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
-                            withCredentials([usernamePassword(credentialsId: 'AZURE_SP', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
+                            withCredentials([usernamePassword(credentialsId: 'yashpankar1', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
                                 echo "Username: ${USERNAME}"
                             }
                         }
