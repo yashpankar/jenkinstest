@@ -34,7 +34,7 @@ pipeline {
                             pipelineUtils.cleanWorkspace()
                             dockerUtils.dockerLogin()
                             dockerUtils.buildDockerImage()
-                            withCredentials([usernamePassword(credentialsId: 'yashpankar', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
+                            withCredentials([usernamePassword(credentialsId: 'AZURE_SP', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
                                 echo "Username: ${USERNAME}"
                             }
                         }
