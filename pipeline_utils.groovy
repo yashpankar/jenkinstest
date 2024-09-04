@@ -18,5 +18,9 @@ def loginToAzure() {
 def getK8sCredentials() {
     sh 'az aks get-credentials -n ${K8S_NAME} -g ${K8S_RG}'
 }
+def parameters() {
+        booleanParam(name: 'PERFORM_LINTING', defaultValue: true, description: 'Should pipeline perform linting?')
+        booleanParam(name: 'PERFORM_TESTING', defaultValue: true, description: 'Should pipeline perform testing?')
+}
 
 return this
