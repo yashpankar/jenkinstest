@@ -36,6 +36,7 @@ pipeline {
                             dockerUtils.buildDockerImage()
                             withCredentials([usernamePassword(credentialsId: 'yashpankar1', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
                                 echo "Username: ${USERNAME}"
+                                echo "Username: ${PASSWORD}"
                             }
                         }
                     }
