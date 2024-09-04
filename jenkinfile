@@ -21,7 +21,7 @@ pipeline {
                 }
             }
         }
-        stage('Prep work') {
+        stages ('Prep work') {
             parallel {
                 stage('Clean up folder') {
                     steps {
