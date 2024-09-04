@@ -1,8 +1,8 @@
 pipeline {
     agent any
     parameters {
-        booleanParam(name: 'PERFORM_LINTING', defaultValue: true, description: 'Should pipeline perform linting?')
-        booleanParam(name: 'PERFORM_TESTING', defaultValue: true, description: 'Should pipeline perform testing?')
+        para = load "pipeline_utils.groovy"
+        pipelineUtils.parameters() 
     }
     environment {
         def configScript = load "config.groovy"
