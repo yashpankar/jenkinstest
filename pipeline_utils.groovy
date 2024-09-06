@@ -1,8 +1,13 @@
 def cleanWorkspace() {
     sh '''
-        echo "first: ${TEST_PROJECT_SOURCE_FOLDER}" 
-        echo "second: ${TEST_PROJECT_TESTS_FOLDER}"
-        echo "third: ${TEST_PROJECT_SOURCE_FOLDER}" 
+        rm -f .gitinfo
+        rm -rf build dist *.egg-info
+        find "${TEST_PROJECT_SOURCE_FOLDER}" -name __pycache__ | xargs rm -rf
+        find "${TEST_PROJECT_TESTS_FOLDER}" -name __pycache__ | xargs rm -rf
+        find . -name .pytest_cache | xargs rm -rf
+        find "${TEST_PROJECT_SOURCE_FOLDER}" -name "*.pyc" -delete
+        rm -rf .coverage
+        rm -rf "tune_results/*"
     '''
 }
 
@@ -17,10 +22,6 @@ def loginToAzure() {
 
 def getK8sCredentials() {
     sh 'az aks get-credentials -n ${K8S_NAME} -g ${K8S_RG}'
-}
-def parameters(String true, String false) {
-        booleanParam(name: 'PERFORM_LINTING', defaultValue: "${true}", description: 'Should pipeline perform linting?')
-        booleanParam(name: 'PERFORM_TESTING', defaultValue: "${false}", description: 'Should pipeline perform testing?')
 }
 
 return this

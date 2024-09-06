@@ -1,54 +1,304 @@
 pipeline {
-    agent any
+    agent {
+        label 'docker-azcli-kubectl'
+    }
+    parameters {
+        booleanParam(name: 'PERFORM_LINTING', defaultValue: true, description: 'Should pipeline perform linting?')
+        booleanParam(name: 'PERFORM_TESTING', defaultValue: true, description: 'Should pipeline perform testing?')
+    }
     environment {
-        def configScript = load "config.groovy"
+        configScript = load './deploymentk8s/jenkins/modules/config.groovy'
         def config = configScript.getConfig()
+        // Store configuration values in environment variables
         TEST_BUILDING = "${config.TEST_BUILDING}"
         SLACK_CHANNEL = "${config.SLACK_CHANNEL}"
+        // Testing
+        SETUP_DEV_SCRIPT = "${config.SETUP_DEV_SCRIPT}"
+        LINTING_SCRIPT_TYPING = "${config.LINTING_SCRIPT_TYPING}"
+        TEST_SCRIPT = "${config.TEST_SCRIPT}"
         TEST_PROJECT_SOURCE_FOLDER = "${config.TEST_PROJECT_SOURCE_FOLDER}"
         TEST_PROJECT_TESTS_FOLDER = "${config.TEST_PROJECT_TESTS_FOLDER}"
+        // Dockerfile path
+        DOCKERFILE_PATH_BASE = "${config.DOCKERFILE_PATH_BASE}"
+        DOCKERFILE_PATH_DEV = "${config.DOCKERFILE_PATH_DEV}"
+        DOCKERFILE_PATH_ADD_PROD_ENV = "${config.DOCKERFILE_PATH_ADD_PROD_ENV}"
+        DOCKERFILE_PATH_ADD_TEST_ENV = "${config.DOCKERFILE_PATH_ADD_TEST_ENV}"
+        // Dockerfile Args
+        AI5_BASE_IMAGE = "${config.AI5_BASE_IMAGE}"
+        AI5_USER = "${config.AI5_USER}"
+        AI5_USER_ID = "${config.AI5_USER_ID}"
+        // ACR Repo information
+        REPO_NAME = "${config.REPO_NAME}"
+        MAJOR_VERSION = "${config.MAJOR_VERSION}"
+        // Base nvidia image repository URL
+        BASE_IMAGE_REPO_URL = "${config.BASE_IMAGE_REPO_URL}"
+        // Azure service principle credentials saved in jenkins
+        AZURE_SP = credentials('AZURE_SP')
+        // Helm-chart Path and related information for optimizer
+        OPTIMIZER_PROD_NAMESPACE = 'prod-ai5'
+        OPTIMIZER_RELEASE_NAME = 'optimizer'
+        OPTIMIZER_CHART_DIR = './deploymentk8s/helm/helm-chart/optimizer-chart'
+        OPTIMIZER_PROD_VALUES = './deploymentk8s/helm/values/optimizer/optimizer-prod-values-override.yaml'
+
+        // Helm-chart Path and related information for Train
+        TRAIN_PROD_NAMESPACE = 'prod-ai5'
+        TRAIN_RELEASE_NAME = 'train'
+        TRAIN_CHART_DIR = './deploymentk8s/helm/helm-chart/optimizer-chart'
+        TRAIN_PROD_VALUES = './deploymentk8s/helm/values/train/train-prod-values-override.yaml'
     }
     stages {
         stage('Load Utilities') {
             steps {
                 script {
-                    // Load the external Groovy scripts
-                    slackNotifier = load "slack_notifier.groovy"
-                    pipelineUtils = load "pipeline_utils.groovy"
-                    dockerUtils = load "docker_utils.groovy"
-                    // Store configuration values in environment variables
+                    slackNotifier = load './deploymentk8s/jenkins/modules/slack_notifier.groovy'
+                    pipelineUtils = load './deploymentk8s/jenkins/modules/pipeline_utils.groovy'
+                    dockerUtils = load './deploymentk8s/jenkins/modules/docker_utils.groovy'
+                    test_Utils = load './deploymentk8s/jenkins/modules/test_utils.groovy'
+                    env_setup = load './deploymentk8s/jenkins/modules/env_setup.groovy'
+                    deployment_Utils = load './deploymentk8s/jenkins/modules/deployment_utils.groovy'
                 }
             }
         }
-        stage('Prep work') {  // Changed 'stages' to 'stage'
+        stage('Prep work') {
             parallel {
+                stage('Notify pipeline start on slack') {
+                    steps {
+                        script {
+                            channel = "${SLACK_CHANNEL}"
+                            message = slackNotifier.buildStartMessage()
+                            slackNotifier.sendSlackNotification(
+                                channel,
+                                message,
+                                '#4f42b5'
+                            )
+                        }
+                    }
+                }
                 stage('Clean up folder') {
                     steps {
                         script {
-                            echo "Slack Channel: ${SLACK_CHANNEL}"
-                            echo "Loaded Slack Notifier: ${slackNotifier}"
-                            echo "Slack Channel: ${SLACK_CHANNEL}"
-                            echo "${TEST_PROJECT_SOURCE_FOLDER}"
-                            echo "${TEST_PROJECT_TESTS_FOLDER}"
-                            slackNotifier.sendSlackNotification()
                             pipelineUtils.cleanWorkspace()
-                            dockerUtils.dockerLogin()
-                            dockerUtils.buildDockerImage()
-                            withCredentials([usernamePassword(credentialsId: 'yashpankar1', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
-                                echo "Username: ${USERNAME}"
-                                echo "Username: ${PASSWORD}"
-                            }
                         }
                     }
                 }
                 stage('Build Base Image') {
                     steps {
                         script {
-                            dockerUtils.dockerLogin()
-                            dockerUtils.buildDockerImage()
+                            dockerTlsClientDir = "${DOCKER_TLS_CLIENTDIR}"
+                            azureSpClientId = "${AZURE_SP_CLIENT_ID}"
+                            azureSpClientSecret = "${AZURE_SP_CLIENT_SECRET}"
+                            baseImageRepoUrl = "${BASE_IMAGE_REPO_URL}"
+                            dockerUtils.dockerLogin(
+                                dockerTlsClientDir,
+                                azureSpClientId,
+                                azureSpClientSecret,
+                                baseImageRepoUrl
+                            )
+                            dockerUtils.buildDockerImage(
+                                "${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}",
+                                "${DOCKERFILE_PATH_BASE}",
+                                [BASE_IMAGE: "${AI5_BASE_IMAGE}",
+                                USER: "${AI5_USER}",
+                                USER_ID: "${AI5_USER_ID}"]
+                            )
                         }
                     }
                 }
+                stage('Bake in other envs.') {
+                    steps {
+                        script {
+                        // Bake in credentials into .env file
+                        // Also bake in git related information
+
+                        // Use ai5-oauth credentials to bake in CLIENT_SECRET and CLIENT_ID
+                            withCredentials(
+                                [usernamePassword(
+                                    credentialsId: 'ai5-oauth',
+                                    passwordVariable: 'CLIENT_SECRET',
+                                    usernameVariable: 'CLIENT_ID'
+                                    )
+                                ]
+                            ) {
+                                env_setup.setupSecretEnv()
+                            }
+                            // Use owm api credentials to bake in OWM_API_KEY
+                            withCredentials(
+                                [usernamePassword(
+                                    credentialsId: 'owm-api-key',
+                                    passwordVariable: 'OWM_API_KEY',
+                                    usernameVariable: 'OWM'
+                                    )
+                                ]
+                            ) {
+                                env_setup.setupOwm_KeyEnv()
+                            }
+
+                            // Bake in git info from Jenkins envs
+                                env_setup.setupGitEnv()
+                        }
+                    }
+                }
+            }
+        }
+        stage('Add Test Env if required') {
+            steps {
+                script {
+                    if (params.PERFORM_LINTING || params.PERFORM_TESTING) {
+                        // Build new image from Dockerfile with test dependencies
+                        // Use base image and add test envs.
+                        dockerUtils.buildDockerImage(
+                                "${TEST_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}",
+                                "${DOCKERFILE_PATH_ADD_TEST_ENV}",
+                                [BASE_IMAGE: "${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}",
+                                USER: "${AI5_USER}"]
+                            )
+                    } else {
+                        sh 'echo "Skipped skipped due to params."'
+                    }
+                }
+            }
+        }
+        stage('Build Image for Linting  and Testing - if required') {
+            steps {
+                script {
+                    if (params.PERFORM_LINTING || params.PERFORM_TESTING) {
+                        // Build new image from Dockerfile with test dependencies
+                        dockerUtils.buildDockerImage(
+                                "${REPO_NAME}/test:${MAJOR_VERSION}.${BUILD_NUMBER}",
+                                "${DOCKERFILE_PATH_DEV}",
+                                [BASE_IMAGE: "${TEST_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}",
+                                USER: "${AI5_USER}"]
+                            )
+                    } else {
+                        sh 'echo "Image for linting and testing skipped due to params."'
+                    }
+                }
+            }
+        }
+        stage('Linting, Type checking and Tests') {
+            parallel {
+                stage('Linting - Typing') {
+                    steps {
+                        script {
+                            if (params.PERFORM_LINTING) {
+                                // Build new image from Dockerfile with test dependencies
+                                // Run image as container ai5, install dev-dependencies and
+                                // run make commands for linting
+                                test_Utils.runLinting()
+                            } else {
+                                sh 'echo "Linting and Typing skipped due to params."'
+                            }
+                        }
+                    }
+                }
+                stage('Tests') {
+                    steps {
+                        script {
+                            if (params.PERFORM_TESTING) {
+                                // Run image as container ai5, install dev-dependencies and run make
+                                // commands for tests
+                                test_Utils.runTests()
+                            } else {
+                                sh 'echo "Tests skipped due to params."'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage('Build Image for Prod') {
+            steps {
+                script {
+                    // Add prod envs to base image to prepare prod image
+                    // Build image from Dockerfile
+                    dockerUtils.buildDockerImage(
+                        "${PROD_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}",
+                        "${DOCKERFILE_PATH_ADD_PROD_ENV}",
+                        [BASE_IMAGE: "${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}",
+                        USER: "${AI5_USER}"]
+                    )
+                }
+            }
+        }
+        stage('Pre-deployment steps') {
+            parallel {
+                stage('Push Image to ACR') {
+                    steps {
+                        script {
+                            dockerTlsClientDir = "${DOCKER_TLS_CLIENTDIR}"
+                            azureSpClientId = "${AZURE_SP_CLIENT_ID}"
+                            azureSpClientSecret = "${AZURE_SP_CLIENT_SECRET}"
+                            baseImageRepoUrl = "${PROD_ACR_LOGIN_SERVER}"
+                            dockerUtils.dockerLogin(
+                                dockerTlsClientDir,
+                                azureSpClientId,
+                                azureSpClientSecret,
+                                baseImageRepoUrl
+                            )
+                            dockerUtils.pushDockerImage(
+                                "${PROD_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}"
+                            )
+                        }
+                    }
+                }
+                stage('Login and get credentials for K8s') {
+                    steps {
+                        script {
+                            pipelineUtils.loginToAzure()
+
+                        // Get AKS credentials for kubectl
+                            pipelineUtils.getK8sCredentials()
+                        }
+                    }
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                script {
+                 // Apply all manifests in the optimizer and train resource folders
+                    imageDetails = [
+                        repository: "${PROD_ACR_LOGIN_SERVER}/${REPO_NAME}",
+                        tag: "${MAJOR_VERSION}.${BUILD_NUMBER}"
+                    ]
+                    deployment_Utils.deployToHelm( 
+                        "${OPTIMIZER_PROD_NAMESPACE}",
+                        "${OPTIMIZER_RELEASE_NAME}",
+                        "${OPTIMIZER_CHART_DIR}",
+                        "${OPTIMIZER_PROD_VALUES}",
+                        imageDetails
+                    )
+
+                    imageDetails = [
+                        repository: "${PROD_ACR_LOGIN_SERVER}/${REPO_NAME}",
+                        tag: "${MAJOR_VERSION}.${BUILD_NUMBER}"
+                    ]
+                    deployment_Utils.deployToHelm( 
+                        "${TRAIN_PROD_NAMESPACE}",
+                        "${TRAIN_RELEASE_NAME}",
+                        "${TRAIN_CHART_DIR}",
+                        "${TRAIN_PROD_VALUES}",
+                        imageDetails
+                    )
+                }
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                dockerTlsClientDir = "${DOCKER_TLS_CLIENTDIR}"
+                dockerUtils.dockerLogout(
+                    dockerTlsClientDir
+                )
+                channel = "${SLACK_CHANNEL}"
+                message = slackNotifier.buildEndMessage()
+                color = currentBuild.result == 'SUCCESS' ? 'good' : 'danger'
+                slackNotifier.sendSlackNotification(
+                    channel,
+                    message,
+                    color
+                )
             }
         }
     }

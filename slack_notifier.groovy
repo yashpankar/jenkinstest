@@ -1,5 +1,5 @@
-def sendSlackNotification() {
-    echo "its working"
+def sendSlackNotification(String channel, String message, String color) {
+    slackSend(channel: channel, message: message, color: color)
 }
 
 def buildStartMessage() {
