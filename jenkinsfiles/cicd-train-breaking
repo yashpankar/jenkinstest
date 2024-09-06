@@ -1,0 +1,392 @@
+/* groovylint-disable DuplicateStringLiteral, LineLength */
+pipeline {
+    agent {
+        // The agent also contains redis and ruamel libraries for python
+        label 'docker-azcli-kubectl'
+    }
+    parameters {
+        booleanParam(name: 'PERFORM_LINTING', defaultValue: false, description: 'Should pipeline perform linting?')
+        booleanParam(name: 'PERFORM_TESTING', defaultValue: false, description: 'Should pipeline perform testing?')
+        booleanParam(name: 'DEPLOY_TRAIN', defaultValue: true, description: 'Should pipeline deploy stage train pods?')
+        booleanParam(name: 'PRODUCE_TO_STREAM', defaultValue: true, description: 'Should pipeline also produce to staging streams?')
+        choice(name: 'BUILDINGS_LIST_NAME', choices: ['optimization_state_buildings', 'specific_buildings', 'all_buildings'], description: 'Which building list to use?')
+        string(name: 'PERCENTAGE_BUILDING', defaultValue: '100', description: 'Percentage of buildings to produce?')
+        string(name: 'BUILDINGS', defaultValue: '', description: 'NOTE: Only applicable with specific_buildings option. Building ids as a comma seperated string, ex: 1, 14, 1121.')
+    }
+    environment {
+        // Test building.
+        TEST_BUILDING = '1191'
+        // Slack Channel
+        SLACK_CHANNEL = 'jenkins-bot'
+
+        // GENERALLY, YOU SHOULD NOT CHANGE ANYTHING HERE.
+        // The following environment variables are required to perform
+        // various functions of the CICD pipeline and are dependent on the
+        // directory structure as well as project setup on jenkins, azure and redis.
+
+        // Azure service principle credentials saved in jenkins
+        AZURE_SP = credentials('AZURE_SP')
+
+        // ACR Repo information
+        REPO_NAME = 'ai5cicdtest'
+        MAJOR_VERSION = '1'
+
+        // Train deployment information - Relative to root of repo
+        STAGE_TRAIN_NAMESPACE = 'stage-ai5'
+        STAGE_TRAIN_DEPLOYMENT_MANIFEST = './deploymentk8s/train/stage/train-deployment.yaml'
+        TRAIN_CONTAINER_NAME = 'train'
+        STAGE_TRAIN_RESOURCE_FOLDER = './deploymentk8s/train/stage/'
+
+        // Helm-chart Path and related information for Train
+        TRAIN_STAGE_NAMESPACE = 'stage-ai5'
+        TRAIN_RELEASE_NAME = 'train'
+        TRAIN_CHART_DIR = './deploymentk8s/helm/helm-chart/optimizer-chart'
+        TRAIN_STAGE_VALUES = './deploymentk8s/helm/values/train-stage-breaking/train-stage-breaking-changes-override.yaml'
+
+        // Dockerfile Args
+        AI5_BASE_IMAGE = 'myrspovendevopskubernetescr.azurecr.io/ai5baseimage:1.00'
+        AI5_USER = 'optimizer'
+        AI5_USER_ID = '1000'
+
+        // Set image python script
+        EDIT_IMAGE_PY_SCRIPT = './deploymentk8s/editManifests/setdeployment_image.py'
+
+        // Dockerfile path
+        DOCKERFILE_PATH_BASE = './deploymentk8s/docker/Dockerfile'
+        DOCKERFILE_PATH_DEV = './deploymentk8s/docker/Dockerfile-addDevDependencies'
+        DOCKERFILE_PATH_ADD_PROD_ENV = './deploymentk8s/docker/Dockerfile-addProdEnv'
+        DOCKERFILE_PATH_ADD_TEST_ENV = './deploymentk8s/docker/Dockerfile-addTestEnv'
+        DOCKERFILE_PATH_ADD_PROD_BREAKING_ENV = './deploymentk8s/docker/Dockerfile-addProdBreakingEnv'
+
+        // Testing
+        SETUP_DEV_SCRIPT = '/home/optimizer/ai5/deploymentk8s/makescripts/setupdevtool.sh'
+        LINTING_SCRIPT_TYPING = '/home/optimizer/ai5/deploymentk8s/makescripts/lintandtyping.sh'
+        TEST_SCRIPT = '/home/optimizer/ai5/deploymentk8s/makescripts/maketest.sh'
+        TEST_PROJECT_SOURCE_FOLDER = 'aimy'
+        TEST_PROJECT_TESTS_FOLDER = 'tests'
+
+        // Base nvidia image repository URL
+        BASE_IMAGE_REPO_URL = 'myrspovendevopskubernetescr.azurecr.io'
+
+        // Stage producer related information
+        // DotNet Call for buildingid
+        AUTH_URL = 'https://identity.myrspoven.se/connect/token'
+        GET_BUILDINGS_URL = 'https://datastorage-myrspoven.azurewebsites.net/v2/Ai/GetBuildings'
+        BUILDING_STATES_URL = 'https://datastorage-myrspoven.azurewebsites.net/BuildingState/GetLatestBuildingStates'
+
+        // Stage Producer Script
+        STAGE_PRODUCER_SCRIPT = './deploymentk8s/stageStreamProducer/stageproducer.py'
+
+        // Redis related information
+        REDIS_HOST = 'redis.redis.svc.cluster.local'
+        SENTINEL_PORT = '26379'
+        SENTINEL_MASTER_SET_NAME = 'mymaster'
+
+        // Staging inuput streams - default
+        STAGE_DEFAULT_OPTIMIZE_STREAM = 'stage-optimizer-01'
+        STAGE_DEFAULT_TRAIN_STREAM = 'stage-train-01'
+    }
+    stages {
+        stage('Prep work') {
+            parallel {
+                stage('Notify pipeline start on slack') {
+                    steps {
+                        script {
+                            MESSAGE = startMessage()
+                            // Notify pipeline run finish
+                            slackSend(
+                                channel: "$SLACK_CHANNEL",
+                                message: MESSAGE,
+                                color: '#4f42b5'
+                            )
+                        }
+                    }
+                }
+                stage('Clean up folder') {
+                    steps {
+                        // Clean folder
+                        sh 'echo "Clean up folder" && \
+                            rm -f .gitinfo && \
+                            rm -rf build dist *.egg-info && \
+                            find "${TEST_PROJECT_SOURCE_FOLDER}" -name __pycache__ | xargs rm -rf && \
+                            find "${TEST_PROJECT_TESTS_FOLDER}" -name __pycache__ | xargs rm -rf && \
+                            find . -name .pytest_cache | xargs rm -rf && \
+                            find "${TEST_PROJECT_SOURCE_FOLDER}" -name "*.pyc" -delete && \
+                            rm -rf .coverage && \
+                            rm -rf "tune_results/*"'
+                    }
+                }
+                stage('Build Base Image') {
+                    steps {
+                        // Login to Correct ACR repo
+                        sh 'docker --tlsverify \
+                            --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                            --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                            --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                            login -u ${AZURE_SP_CLIENT_ID} -p ${AZURE_SP_CLIENT_SECRET} ${BASE_IMAGE_REPO_URL}'
+
+                        // Build new image from Dockerfile as base image
+                        // Build image from Dockerfile
+                        sh 'docker --tlsverify \
+                            --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                            --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                            --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                            build -t ${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER} \
+                            --build-arg "BASE_IMAGE=$AI5_BASE_IMAGE" \
+                            --build-arg "USER=$AI5_USER" \
+                            --build-arg "USER_ID=$AI5_USER_ID" \
+                            -f ${DOCKERFILE_PATH_BASE} .'
+                    }
+                }
+                stage('Bake in other envs.') {
+                    steps {
+                        // Bake in credentials into .env file
+                        // Also bake in git related information
+
+                        // Use ai5-oauth credentials to bake in CLIENT_SECRET and CLIENT_ID
+                        withCredentials(
+                            [usernamePassword(
+                                credentialsId: 'ai5-oauth',
+                                passwordVariable: 'CLIENT_SECRET',
+                                usernameVariable: 'CLIENT_ID'
+                                )
+                            ]
+                        ) {
+                            sh '''
+                            echo CLIENT_ID=${CLIENT_ID}>> "./deploymentk8s/envs/.env-ai-test"
+                            echo CLIENT_SECRET=${CLIENT_SECRET}>> "./deploymentk8s/envs/.env-ai-test"
+                            '''
+                        }
+
+                        // Use owm api credentials to bake in OWM_API_KEY
+                        withCredentials(
+                            [usernamePassword(
+                                credentialsId: 'owm-api-key',
+                                passwordVariable: 'OWM_API_KEY',
+                                usernameVariable: 'OWM'
+                                )
+                            ]
+                        ) {
+                            sh 'echo OWM_API_KEY=${OWM_API_KEY}>> "./deploymentk8s/envs/.env-ai-test"'
+                        }
+
+                        // Bake in git info from Jenkins envs
+                        sh '''
+                            echo BRANCH_NAME=${GIT_BRANCH}>> "./deploymentk8s/envs/.env-ai-test"
+                            echo COMMIT_HASH=${GIT_COMMIT}>> "./deploymentk8s/envs/.env-ai-test"
+                            '''
+                    }
+                }
+            }
+        }
+        stage('Add Test Env') {
+            steps {
+                // Use base image and add test envs.
+                sh 'docker --tlsverify \
+                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                    build -t ${TEST_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER} \
+                    --build-arg "BASE_IMAGE=${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}" \
+                    --build-arg "USER=$AI5_USER" \
+                    -f ${DOCKERFILE_PATH_ADD_TEST_ENV} .'
+            }
+        }
+        stage('Build Image for Linting  and Testing - if required') {
+            steps {
+                script {
+                    if (params.PERFORM_LINTING || params.PERFORM_TESTING) {
+                        // Build new image from Dockerfile with test dependencies
+                        sh 'docker --tlsverify \
+                            --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                            --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                            --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                            build -t ${REPO_NAME}/test:${MAJOR_VERSION}.${BUILD_NUMBER} \
+                            --build-arg "BASE_IMAGE=${TEST_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}" \
+                            -f ${DOCKERFILE_PATH_DEV} .'
+                    } else {
+                        sh 'echo "Image for linting and testing skipped due to params."'
+                    }
+                }
+            }
+        }
+        stage('Linting, Type checking and Tests') {
+            parallel {
+                stage('Linting - Typing') {
+                    steps {
+                        script {
+                            if (params.PERFORM_LINTING) {
+                                // Build new image from Dockerfile with test dependencies
+                                // Run image as container ai5, install dev-dependencies and run make commands for linting
+                                sh 'docker --tlsverify \
+                                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                                    run --rm --name ai5typing --cpus="4" \
+                                    -e TEST_BUILDING=${TEST_BUILDING} \
+                                    -e AZURE_CLIENT_ID=${AZURE_SP_CLIENT_ID} \
+                                    -e AZURE_CLIENT_SECRET=${AZURE_SP_CLIENT_SECRET} \
+                                    -e AZURE_TENANT_ID=${AZURE_TENANT_ID} \
+                                    -e TEST_PROJECT_SOURCE_FOLDER=${TEST_PROJECT_SOURCE_FOLDER} \
+                                    -e TEST_PROJECT_TESTS_FOLDER=${TEST_PROJECT_TESTS_FOLDER} \
+                                    ${REPO_NAME}/test:${MAJOR_VERSION}.${BUILD_NUMBER} \
+                                    bash ${LINTING_SCRIPT_TYPING}'
+                            } else {
+                                sh 'echo "Linting and Typing skipped due to params."'
+                            }
+                        }
+                    }
+                }
+                stage('Tests') {
+                    steps {
+                        script {
+                            if (params.PERFORM_TESTING) {
+                                // Run image as container ai5, install dev-dependencies and run make commands for tests
+                                sh 'docker --tlsverify \
+                                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                                    run --rm --name ai5test --cpus="4" \
+                                    -e TEST_BUILDING=${TEST_BUILDING} \
+                                    -e AZURE_CLIENT_ID=${AZURE_SP_CLIENT_ID} \
+                                    -e AZURE_CLIENT_SECRET=${AZURE_SP_CLIENT_SECRET} \
+                                    -e AZURE_TENANT_ID=${AZURE_TENANT_ID} \
+                                    -e TEST_PROJECT_SOURCE_FOLDER=${TEST_PROJECT_SOURCE_FOLDER} \
+                                    -e TEST_PROJECT_TESTS_FOLDER=${TEST_PROJECT_TESTS_FOLDER} \
+                                    ${REPO_NAME}/test:${MAJOR_VERSION}.${BUILD_NUMBER} \
+                                    bash ${TEST_SCRIPT}'
+                            } else {
+                                sh 'echo "Tests skipped due to params."'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage('Build Image with Prod breaking changes env') {
+            steps {
+                // Add prod envs to base image to prepare prod image
+                // Build image from Dockerfile
+                sh 'docker --tlsverify \
+                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                    build -t ${PROD_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER} \
+                    --build-arg "BASE_IMAGE=${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}" \
+                    -f ${DOCKERFILE_PATH_ADD_PROD_BREAKING_ENV} .'
+            }
+        }
+        stage('Push Image to ACR') {
+            steps {
+                // Login to PROD ACR
+                sh 'docker --tlsverify \
+                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                    login -u ${AZURE_SP_CLIENT_ID} -p ${AZURE_SP_CLIENT_SECRET} ${PROD_ACR_LOGIN_SERVER}'
+
+                // Push image to prod acr
+                sh 'docker --tlsverify \
+                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                    push ${PROD_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}'
+            }
+        }
+        stage('Deploy to K8s') {
+            steps {
+                // Login to Azure
+                sh 'az login --service-principal \
+                    -u ${AZURE_SP_CLIENT_ID} \
+                    -p ${AZURE_SP_CLIENT_SECRET} \
+                    --tenant ${AZURE_TENANT_ID}'
+
+                // Get AKS credentials for kubectl
+                sh 'az aks get-credentials -n ${K8S_NAME} -g ${K8S_RG}'
+
+                // Apply the stage manifests
+                script {
+                    if (params.DEPLOY_TRAIN) {
+                        sh 'helm -n $TRAIN_STAGE_NAMESPACE upgrade --install \
+                            --set image.repository=${PROD_ACR_LOGIN_SERVER}/${REPO_NAME} \
+                            --set image.tag=${MAJOR_VERSION}.${BUILD_NUMBER} \
+                            $TRAIN_RELEASE_NAME $TRAIN_CHART_DIR -f $TRAIN_STAGE_VALUES'
+
+                        withCredentials(
+                            [usernamePassword(
+                                credentialsId: 'OAuthDotNet',
+                                passwordVariable: 'CLIENT_SECRET',
+                                usernameVariable: 'CLIENT_ID'
+                                )
+                            ]
+                        )
+                        {
+                        // Produce to streams if required
+                            if (params.PRODUCE_TO_STREAM) {
+                                env.AI_PROCESS_TYPE = 'Train'
+                                env.BUILDINGS_LIST_NAME = params.BUILDINGS_LIST_NAME
+                                env.PERCENTAGE_BUILDING = params.PERCENTAGE_BUILDING
+                                env.INPUT_STREAM = env.STAGE_DEFAULT_TRAIN_STREAM
+                                env.BUILDINGS_STRING = params.BUILDINGS
+                                sh 'python $STAGE_PRODUCER_SCRIPT'
+                            } else {
+                                sh 'echo "Skipped producing to stream due to params."'
+                            }
+                        }
+                    } else {
+                        sh 'echo "Stage train deployment is skipped."'
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            // Docker logout
+            sh 'docker --tlsverify \
+                --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                logout'
+
+            script {
+                MESSAGE = endMessage()
+                COLOR = endColor()
+                // Notify pipeline run finish
+                slackSend(
+                    channel: "$SLACK_CHANNEL",
+                    message: MESSAGE,
+                    color: COLOR
+                )
+            }
+        }
+    }
+}
+
+String endColor() {
+    return (currentBuild.result == 'SUCCESS') ? 'good' : 'danger'
+}
+
+String endMessage() {
+    s = """\
+    *${currentBuild.currentResult}:*
+    Pipeline name: ${env.JOB_NAME}, Build: ${env.BUILD_NUMBER}
+    *Git info:*
+    Branch: ${env.GIT_BRANCH}, Hash: ${env.GIT_COMMIT}
+    *More info at:*
+    ${env.BUILD_URL}"""
+
+    return s.stripMargin().stripIndent()
+}
+
+String startMessage() {
+    s = """\
+    *Job Start:*
+    Pipeline Name: ${env.JOB_NAME} Build: ${env.BUILD_NUMBER}
+    *Git info:*
+    Branch: ${env.GIT_BRANCH}, Hash: ${env.GIT_COMMIT}
+    *More info at:*
+    ${env.BUILD_URL}"""
+
+    return s.stripMargin().stripIndent()
+}

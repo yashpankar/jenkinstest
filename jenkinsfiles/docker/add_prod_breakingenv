@@ -1,0 +1,26 @@
+# Define the base image to use. This ARG will be replaced with the image provided by Jenkins.
+ARG BASE_IMAGE
+
+# Use the specified base image for the Docker build process.
+FROM ${BASE_IMAGE}
+
+# Output the base image being used. This helps in verifying that the correct base image is in use.
+RUN echo ${BASE_IMAGE}
+
+# Define the user to be created and used within the container.
+ARG USER="optimizer" 
+
+# Define build-time arguments for the working directory.
+ARG WORKDIR="/home/${USER}/ai5"
+
+# Set the working directory for the following instructions to the new user's home directory.
+WORKDIR ${WORK_DIR}
+
+# Copy the .env file from the local directory into the container's working directory.
+# The --chown flag sets the ownership of the file to the specified user (${USER}).
+# This is important for ensuring the file permissions are correctly set for the user.
+COPY --chown=${USER} ./deploymentk8s/envs/.env-ai-test ./.env
+
+# Switch to the non-root user specified by the USER argument.
+# This user should have limited privileges for security reasons. Running as a non-root user is a best practice.
+USER ${USER}

@@ -1,0 +1,85 @@
+pipeline {
+    agent {
+        label 'docker-azcli-kubectl'
+    }
+    parameters {
+        booleanParam(name: 'PRODUCE_TO_STAGE_OPTIMIZER_STREAM', defaultValue: true, description: 'Should the pipeline produce to stage optimizer stream?')
+        booleanParam(name: 'PRODUCE_TO_STAGE_TRAIN_STREAM', defaultValue: true, description: 'Should the pipeline produce to stage train stream?')
+        choice(name: 'BUILDINGS_LIST_NAME', choices: 'optimization_state_buildings', 'specific_buildings', 'all_buildings'], description: 'Which building list to use?')
+        string(name: 'PERCENTAGE_BUILDING', defaultValue: '100', description: 'Percentage of buildings to produce?')
+        string(name: 'BUILDINGS', defaultValue: '', description: 'NOTE: Only applicable with specific_buildings option. Building ids as a comma seperated string, ex: 1, 14, 1121.')
+    }
+    environment {
+        // NOTE: These values should not be changed
+        // Stage producer related information
+        // DotNet Call for buildingid
+        AUTH_URL = 'https://identity.myrspoven.se/connect/token'
+        GET_BUILDINGS_URL = 'https://datastorage-myrspoven.azurewebsites.net/v2/Ai/GetBuildings'
+        BUILDING_STATES_URL = 'https://datastorage-myrspoven.azurewebsites.net/BuildingState/GetLatestBuildingStates'
+
+        // Stage Producer Script
+        STAGE_PRODUCER_SCRIPT = './deploymentk8s/stageStreamProducer/stageproducer.py'
+
+        // Redis related information
+        REDIS_HOST = 'redis.redis.svc.cluster.local'
+        SENTINEL_PORT = '26379'
+        SENTINEL_MASTER_SET_NAME = 'mymaster'
+
+        // Staging inuput streams - default
+        STAGE_DEFAULT_OPTIMIZE_STREAM = 'stage-optimizer-01'
+        STAGE_DEFAULT_TRAIN_STREAM = 'stage-train-01'
+    }
+    stages {
+        stage('Produce to stage optimizer stream - if PRODUCE_TO_STAGE_OPTIMIZER_STREAM is true') {
+            steps {
+                script {
+                    withCredentials(
+                            [usernamePassword(
+                                credentialsId: 'OAuthDotNet',
+                                passwordVariable: 'CLIENT_SECRET',
+                                usernameVariable: 'CLIENT_ID'
+                                )
+                            ]
+                        ){
+                        if (params.PRODUCE_TO_STAGE_OPTIMIZER_STREAM) {
+                            env.AI_PROCESS_TYPE = 'Optimize'
+                            env.BUILDINGS_LIST_NAME = params.BUILDINGS_LIST_NAME
+                            env.PERCENTAGE_BUILDING = params.PERCENTAGE_BUILDING
+                            env.INPUT_STREAM = env.STAGE_DEFAULT_OPTIMIZE_STREAM
+                            env.BUILDINGS_STRING = params.BUILDINGS
+                            sh 'python $STAGE_PRODUCER_SCRIPT'
+                        } else {
+                            sh 'echo "Stage optimizer stream skipped due to condition PRODUCE_TO_STAGE_OPTIMIZER_STREAM == false"'
+                        }
+                    }
+                }
+            }
+        }
+        stage('Produce to stage train stream - if PRODUCE_TO_STAGE_TRAIN_STREAM is true') {
+            steps {
+                script {
+                    withCredentials(
+                            [usernamePassword(
+                                credentialsId: 'OAuthDotNet',
+                                passwordVariable: 'CLIENT_SECRET',
+                                usernameVariable: 'CLIENT_ID'
+                                )
+                            ]
+                    ){
+                        if (params.PRODUCE_TO_STAGE_TRAIN_STREAM) {
+                            env.AI_PROCESS_TYPE = 'Train'
+                            env.BUILDINGS_LIST_NAME = params.BUILDINGS_LIST_NAME
+                            env.PERCENTAGE_BUILDING = params.PERCENTAGE_BUILDING
+                            env.INPUT_STREAM = env.STAGE_DEFAULT_TRAIN_STREAM
+                            env.BUILDINGS_STRING = params.BUILDINGS
+
+                            sh 'python $STAGE_PRODUCER_SCRIPT'
+                        } else {
+                            sh 'echo "Stage train stream skipped due to condition PRODUCE_TO_STAGE_OPTIMIZER_STREAM == false"'
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

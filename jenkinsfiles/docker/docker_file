@@ -1,0 +1,41 @@
+
+ARG BASE_IMAGE="myrspovendevopskubernetescr.azurecr.io/ai5baseimage:1.00"
+FROM ${BASE_IMAGE}
+
+# Define the user to be created in the container.
+ARG USER="optimizer"
+ARG USER_ID=1000
+
+# Create a new user with a home directory and bash shell.
+RUN useradd -m -s /bin/bash ${USER} --uid ${USER_ID}
+
+# Set the working directory for the following instructions to the new user's home directory.
+WORKDIR /home/${USER}
+
+# Set up a Python virtual environment in the specified directory.
+# This isolates the Python packages from the global environment.
+ENV VIRTUAL_ENV=/opt/py311
+RUN python3.11 -m venv $VIRTUAL_ENV
+
+# Update the PATH environment variable to include the virtual environment's binary directory.
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Copy the requirements file into the container's current working directory.
+COPY requirements.txt ./
+
+# Upgrade pip and setuptools to their latest versions, then install the required Python packages
+# from requirements.txt, along with specific versions of jax and jaxlib for CUDA support.
+RUN pip install --upgrade pip && \
+    pip install --upgrade setuptools && \
+    pip install -r requirements.txt && \
+    pip install "jax[cuda]==0.4.18" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html && \
+    pip install "jaxlib==0.4.18" -f https://storage.googleapis.com/jax-releases/jax_releases.html
+
+# Copy the application code into the container, changing ownership to the specified user.
+COPY --chown=${USER} . ./ai5/
+
+# Change the working directory to where the application code was copied.
+WORKDIR "/home/${USER}/ai5"
+
+# Switch to the newly created user to run subsequent commands.
+USER ${USER}

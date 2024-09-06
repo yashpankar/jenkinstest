@@ -1,0 +1,16 @@
+# Define the base image to use. This ARG will be replaced with the image provided by Jenkins.
+ARG BASE_IMAGE
+
+# Use the specified base image for the Docker build process.
+FROM ${BASE_IMAGE}
+
+# Output the base image being used. This helps in verifying that the correct base image is in use.
+RUN echo ${BASE_IMAGE}
+
+# Define the user to be created and used within the container.
+ARG USER="optimizer"
+
+# Copy the requirements file into the container's current working directory.
+COPY --chown=${USER} ./deploymentk8s/envs/.env-ai-test ./.env
+
+USER ${USER}

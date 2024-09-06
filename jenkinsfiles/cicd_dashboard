@@ -1,0 +1,194 @@
+pipeline {
+    agent {
+        // The agent also contains redis and ruamel libraries for python
+        label 'docker-azcli-kubectl'
+        }
+    environment {
+        // Slack Channel
+        SLACK_CHANNEL = 'jenkins-bot'
+        // GENERALLY, YOU SHOULD NOT CHANGE ANYTHING HERE.
+        // The following environment variables are required to perform
+        // various functions of the CICD pipeline and are dependent on the
+        // directory structure as well as project setup on jenkins, azure and redis.
+
+        // Azure service principle credentials saved in jenkins
+        AZURE_SP = credentials('AZURE_SP')
+
+        // ACR Repo information
+        REPO_NAME = 'ai5/dashboard'
+        MAJOR_VERSION = '1'
+
+        // Dashboard deployment information - Relative to root of repo
+        DASHBOARD_NAMESPACE = 'prod-ai5'
+        DASHBOARD_DEPLOYMENT_MANIFEST = './deploymentk8s/dashboard/prod/dashboard-deployment.yaml'
+        DASHBOARD_CONTAINER_NAME = 'dashboard'
+        DASHBOARD_RESOURCE_FOLDER = './deploymentk8s/dashboard/prod/'
+
+        // Dockerfile Args
+        AI5_BASE_IMAGE = 'myrspovendevopskubernetescr.azurecr.io/ai5baseimage:1.00'
+        AI5_USER = 'optimizer'
+        AI5_USER_ID = '1000'
+
+         // Dashboard Helm-chart Path and related information
+        PROD_NAMESPACE = 'prod-ai5'
+        RELEASE_NAME = 'dashboard'
+        CHART_DIR = './deploymentk8s/helm/helm-chart/dashboard-chart'
+        PROD_VALUES = './deploymentk8s/helm/values/dashboard/dashboard-prod-values-override.yaml'
+
+        // Set image python script
+        EDIT_IMAGE_PY_SCRIPT = './deploymentk8s/editManifests/setdeployment_image.py'
+
+        // Dockerfile path
+        DOCKERFILE_PATH_DASHBOARD = './deploymentk8s/docker/Dockerfile-dashboard'
+
+        // Base nvidia image repository URL
+        BASE_IMAGE_REPO_URL = 'myrspovendevopskubernetescr.azurecr.io'
+    }
+    stages {
+        stage('Create streamlit password') {
+            steps {
+                // Use dashboard secret from jenkins to create streamlit password
+                // This will be copied into the image during build phase
+                withCredentials([string(credentialsId: 'dashboard-password', variable: 'STREAMLIT_PASSWORD')]) {
+                    // Create directory .streamlit
+                    sh 'mkdir -p .streamlit'
+                    // Add secrets.toml file
+                    sh 'echo "$STREAMLIT_PASSWORD" > ".streamlit/secrets.toml"'
+                }
+            }
+        }
+        stage('Bake in other envs.') {
+            steps {
+                // Bake in credentials into .env file
+                // Also bake in git related information
+
+                // Use ai5-oauth credentials to bake in CLIENT_SECRET and CLIENT_ID
+                withCredentials(
+                    [usernamePassword(
+                        credentialsId: 'ai5-oauth',
+                        passwordVariable: 'CLIENT_SECRET',
+                        usernameVariable: 'CLIENT_ID'
+                        )
+                    ]
+                ) {
+                    sh '''
+                    echo CLIENT_ID=${CLIENT_ID}>> "./deploymentk8s/envs/.env-ai-dashboard"
+                    echo CLIENT_SECRET=${CLIENT_SECRET}>> "./deploymentk8s/envs/.env-ai-dashboard"
+                    '''
+                }
+
+                // Use owm api credentials to bake in OWM_API_KEY
+                withCredentials(
+                    [usernamePassword(
+                        credentialsId: 'owm-api-key',
+                        passwordVariable: 'OWM_API_KEY',
+                        usernameVariable: 'OWM'
+                        )
+                    ]
+                ) {
+                    sh 'echo OWM_API_KEY=${OWM_API_KEY}>> "./deploymentk8s/envs/.env-ai-dashboard"'
+                }
+
+                // Bake in git info from Jenkins envs
+                sh '''
+                    echo BRANCH_NAME=${GIT_BRANCH}>> "./deploymentk8s/envs/.env-ai-dashboard"
+                    echo COMMIT_HASH=${GIT_COMMIT}>> "./deploymentk8s/envs/.env-ai-dashboard"
+                    '''
+            }
+        }
+        stage('Build Dashboard Image') {
+            steps {
+                // Login to Correct ACR repo
+                sh 'docker --tlsverify \
+                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                    login -u ${AZURE_SP_CLIENT_ID} -p ${AZURE_SP_CLIENT_SECRET} ${BASE_IMAGE_REPO_URL}'
+
+                // Build new image from Dockerfile as base image
+                // Build image from Dockerfile
+                sh 'docker --tlsverify \
+                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                    build -t ${PROD_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER} \
+                    --build-arg "BASE_IMAGE=$AI5_BASE_IMAGE" \
+                    --build-arg "USER=$AI5_USER" \
+                    --build-arg "USER_ID=$AI5_USER_ID" \
+                    -f ${DOCKERFILE_PATH_DASHBOARD} .'
+            }
+        }
+        stage('Push Image to ACR') {
+            steps {
+                // Login to Prod ACR
+                sh 'docker --tlsverify \
+                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                    login -u ${AZURE_SP_CLIENT_ID} -p ${AZURE_SP_CLIENT_SECRET} ${PROD_ACR_LOGIN_SERVER}'
+
+                // Push dashboard image to acr
+                sh 'docker --tlsverify \
+                    --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                    --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                    --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                    push ${PROD_ACR_LOGIN_SERVER}/${REPO_NAME}:${MAJOR_VERSION}.${BUILD_NUMBER}'
+            }
+        }
+        stage('Deploy to K8s') {
+            steps {
+                // Login to Azure
+                sh 'az login --service-principal \
+                    -u ${AZURE_SP_CLIENT_ID} \
+                    -p ${AZURE_SP_CLIENT_SECRET} \
+                    --tenant ${AZURE_TENANT_ID}'
+
+                // Get AKS credentials for kubectl
+                sh 'az aks get-credentials -n ${K8S_NAME} -g ${K8S_RG}'
+
+                // Apply the stage manifests
+                sh 'helm -n $PROD_NAMESPACE upgrade --install \
+                    --set image.repository=${PROD_ACR_LOGIN_SERVER}/${REPO_NAME} \
+                    --set image.tag=${MAJOR_VERSION}.${BUILD_NUMBER} \
+                    $RELEASE_NAME $CHART_DIR -f $PROD_VALUES'
+            }
+        }
+    }
+    post {
+        always {
+            // Docker logout
+            sh 'docker --tlsverify \
+                --tlscacert $DOCKER_TLS_CLIENTDIR/ca.pem \
+                --tlscert $DOCKER_TLS_CLIENTDIR/cert.pem \
+                --tlskey $DOCKER_TLS_CLIENTDIR/key.pem \
+                logout'
+
+            script {
+                MESSAGE = endMessage()
+                COLOR = endColor()
+                // Notify pipeline run finish
+                slackSend(
+                    channel: "$SLACK_CHANNEL",
+                    message: MESSAGE,
+                    color: COLOR
+                )
+            }
+        }
+    }
+}
+
+String endColor() {
+    return (currentBuild.result == 'SUCCESS') ? 'good' : 'danger'
+}
+
+String endMessage() {
+    s = """\
+    *${currentBuild.currentResult}:*
+    Pipeline name: ${env.JOB_NAME}, Build: ${env.BUILD_NUMBER}
+    *Git info:*
+    Branch: ${env.GIT_BRANCH}, Hash: ${env.GIT_COMMIT}
+    *More info at:*
+    ${env.BUILD_URL}"""
+
+    return s.stripMargin().stripIndent()
+}

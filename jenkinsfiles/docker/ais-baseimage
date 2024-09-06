@@ -1,0 +1,56 @@
+# Use the NVIDIA CUDA image with Ubuntu 22.04 base and CUDA 11.8.0
+FROM myrspovendevopskubernetescr.azurecr.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
+
+# Set environment variables for non-interactive installation and no cache for pip
+ENV DEBIAN_FRONTEND="noninteractive" \
+    PIP_NO_CACHE_DIR=1
+
+# Update and upgrade system packages, then install essential tools
+RUN apt-get update && apt-get -y upgrade
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnupg \
+    lsb-core \
+    wget \
+    curl \
+    ca-certificates \
+    apt-transport-https
+
+# Add Microsoft and NVIDIA repositories and keys
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+RUN echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | \
+    tee /etc/apt/sources.list.d/mssql-release.list
+
+RUN apt update && \
+    ACCEPT_EULA=Y apt-get install -y \
+    build-essential \
+    msodbcsql17 \
+    mssql-tools \
+    unixodbc-dev \
+    unixodbc \
+    vim
+
+RUN apt-get -y install zlib1g-dev \
+        libncurses5-dev \
+        libgdbm-dev \
+        libnss3-dev \
+        libssl-dev \
+        libreadline-dev \
+        libffi-dev \
+        libsqlite3-dev \
+        libbz2-dev \
+    && apt-get purge -y imagemagick imagemagick-6-common
+
+RUN wget --no-check-certificate https://packages.cloud.google.com/apt/doc/apt-key.gpg -q -O- | apt-key add - && \
+    wget --no-check-certificate https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
+    dpkg -i cuda-keyring_1.1-1_all.deb
+
+# Install python 3.11.6 from source
+RUN cd /usr/src \
+    && wget https://www.python.org/ftp/python/3.11.6/Python-3.11.6.tgz \
+    && tar -xzf Python-3.11.6.tgz \
+    && rm Python-3.11.6.tgz \
+    && cd Python-3.11.6 \
+    && ./configure --enable-optimizations \
+    && make altinstall
+
+

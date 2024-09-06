@@ -1,0 +1,72 @@
+FROM myrspovendevopskubernetescr.azurecr.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND="noninteractive" \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get -y upgrade
+
+RUN useradd -m -s /bin/bash dailymetrics
+WORKDIR /home/dailymetrics
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnupg \
+    lsb-core \
+    wget \
+    curl \
+    ca-certificates \
+    apt-transport-https
+
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+RUN echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | \
+    tee /etc/apt/sources.list.d/mssql-release.list
+
+RUN apt update && \
+    ACCEPT_EULA=Y apt-get install -y \
+    build-essential \
+    msodbcsql17 \
+    mssql-tools \
+    unixodbc-dev \
+    unixodbc \
+    vim
+
+RUN apt-get -y install zlib1g-dev \
+        libncurses5-dev \
+        libgdbm-dev \
+        libnss3-dev \
+        libssl-dev \
+        libreadline-dev \
+        libffi-dev \
+        libsqlite3-dev \
+        libbz2-dev \
+    && apt-get purge -y imagemagick imagemagick-6-common
+
+RUN cd /usr/src \
+    && wget https://www.python.org/ftp/python/3.11.6/Python-3.11.6.tgz \
+    && tar -xzf Python-3.11.6.tgz \
+    && rm Python-3.11.6.tgz \
+    && cd Python-3.11.6 \
+    && ./configure --enable-optimizations \
+    && make altinstall
+
+RUN wget --no-check-certificate https://packages.cloud.google.com/apt/doc/apt-key.gpg -q -O- | apt-key add - && \
+    wget --no-check-certificate https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb && \
+    dpkg -i cuda-keyring_1.0-1_all.deb
+
+ENV VIRTUAL_ENV=/opt/py311
+RUN python3.11 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+COPY requirements.txt ./
+
+RUN pip install --upgrade pip && \
+    pip install --upgrade setuptools && \
+    pip install -r requirements.txt && \
+    pip install "jax[cuda]==0.4.18" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html && \
+    pip install "jaxlib==0.4.18" -f https://storage.googleapis.com/jax-releases/jax_releases.html
+
+
+COPY --chown=dailymetrics . ./ai5/
+COPY --chown=dailymetrics ./deploymentk8s/envs/.env-ai-dashboard ./ai5/.env
+
+WORKDIR /home/dailymetrics/ai5
+USER dailymetrics

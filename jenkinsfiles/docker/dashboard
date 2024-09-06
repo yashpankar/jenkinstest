@@ -1,0 +1,34 @@
+ARG BASE_IMAGE="myrspovendevopskubernetescr.azurecr.io/ai5baseimage:1.00"
+FROM ${BASE_IMAGE}
+
+ARG USER="optimizer"
+ARG USER_ID=1000
+
+RUN useradd -m -s /bin/bash ${USER} --uid ${USER_ID}
+WORKDIR /home/${USER}
+
+ENV VIRTUAL_ENV=/opt/py311
+RUN python3.11 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+COPY requirements.txt ./
+
+RUN pip install --upgrade pip && \
+    pip install --upgrade setuptools && \
+    # pip install redis==5.0.1 && \
+    # pip install prometheus-client==0.17.1 && \
+    pip install -r requirements.txt && \
+    pip install "jax[cuda]==0.4.18" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html && \
+    pip install "jaxlib==0.4.18" -f https://storage.googleapis.com/jax-releases/jax_releases.html
+
+RUN pip install protobuf==3.20.1 && \
+    pip install pytest==6.2.5 && \
+    pip install statsmodels==0.14.0
+
+COPY --chown=${USER} . ./ai5/
+COPY --chown=${USER} ./deploymentk8s/envs/.env-ai-dashboard ./ai5/.env
+
+WORKDIR /home/${USER}/ai5
+USER ${USER}
+
+CMD ["streamlit", "run", "aimy/dashboard/building_overview.py", "--server.maxMessageSize", "2500"]
